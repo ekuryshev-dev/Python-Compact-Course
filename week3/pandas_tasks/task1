@@ -1,0 +1,181 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def swap_columns(dataframe, first_column, second_column):
+    """Exchange values in two columns."""
+    result = dataframe.copy()
+    result[first_column] = dataframe[second_column].to_numpy()
+    result[second_column] = dataframe[first_column].to_numpy()
+    return result
+
+
+csv_path = Path(__file__).with_name("Cars93_missing.csv")
+
+# 1. Read the CSV file and create a DataFrame.
+if not csv_path.is_file():
+    raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+cars = pd.read_csv(csv_path, encoding="utf-8")
+
+print("\n1. First five rows:")
+print(cars.head())
+print("\nDataFrame structure:")
+cars.info()
+
+
+# 2. Convert an object column into the index.
+cars_with_index = cars.dropna(subset=["Make"]).set_index("Make")
+
+print("\n2. Make as the index:")
+print(cars_with_index.head())
+
+
+# 3. Change values according to a condition.
+# Example: reduce prices above 30 by 10%.
+cars_with_discount = cars.copy()
+expensive_cars = cars_with_discount["Price"] > 30
+cars_with_discount.loc[expensive_cars, "Price"] *= 0.9
+
+print("\n3. Prices after the discount:")
+print(cars_with_discount.loc[expensive_cars, ["Make", "Price"]].head())
+
+
+# 4. Show column names and count missing values.
+print("\n4. Column names:")
+print(cars.columns.tolist())
+
+print("\nMissing values in each column:")
+print(cars.isna().sum())
+print("Total missing values:", cars.isna().sum().sum())
+
+
+# 5. Exchange values in two columns and sort columns by name.
+swapped_cars = swap_columns(cars, "MPG.city", "MPG.highway")
+sorted_cars = cars.sort_index(axis=1)
+
+print("\n5. Original city and highway values:")
+print(cars[["MPG.city", "MPG.highway"]].head())
+
+print("Values after swapping:")
+print(swapped_cars[["MPG.city", "MPG.highway"]].head())
+
+print("Columns sorted by name:")
+print(sorted_cars.columns.tolist())
+
+
+# 6. Remove the lowest and highest 5% by Price.
+cars_with_price = cars.dropna(subset=["Price"])
+lower_limit = cars_with_price["Price"].quantile(0.05)
+upper_limit = cars_with_price["Price"].quantile(0.95)
+
+cars_without_extremes = cars_with_price[
+    cars_with_price["Price"].between(lower_limit, upper_limit)
+]
+
+print("\n6. Price limits:", lower_limit, upper_limit)
+print("Rows before trimming:", len(cars_with_price))
+print("Rows after trimming:", len(cars_without_extremes))
+
+
+# 7. Replace missing Min.Price values with the column mean.
+cars_filled = cars.copy()
+average_min_price = cars_filled["Min.Price"].mean()
+cars_filled["Min.Price"] = cars_filled["Min.Price"].fillna(
+    average_min_price
+)
+
+print("\n7. Mean Min.Price:", average_min_price)
+print("Missing Min.Price values after filling:")
+print(cars_filled["Min.Price"].isna().sum())
+
+
+# 8. Create two DataFrames from dictionaries and merge them.
+car_names = pd.DataFrame({
+    "id": [1, 2, 3],
+    "model": ["Integra", "Legend", "90"],
+})
+car_ratings = pd.DataFrame({
+    "id": [1, 2, 3],
+    "rating": [8, 9, 7],
+})
+
+merged_cars = pd.merge(car_names, car_ratings, on="id")
+
+cars_with_rating = car_names.copy()
+cars_with_rating["rating"] = car_ratings["rating"]
+
+print("\n8. Merged DataFrames:")
+print(merged_cars)
+
+print("Rating added as a new column:")
+print(cars_with_rating)
+
+
+# 9. Histogram with labeled price ranges and counts.
+prices = cars["Price"].dropna()
+price_bins = [0, 10, 20, 30, 40, 50, 60, 70]
+
+fig, ax = plt.subplots(figsize=(10, 5), dpi=150)
+
+counts, edges, _ = ax.hist(
+    prices,
+    bins=price_bins,
+    color="#4C78A8",
+    edgecolor="white",
+    linewidth=2,
+    rwidth=0.9,
+)
+
+for count, left, right in zip(counts, edges[:-1], edges[1:]):
+    if count > 0:
+        ax.text(
+            (left + right) / 2,
+            count + 0.5,
+            str(int(count)),
+            ha="center",
+            fontweight="bold",
+        )
+
+ax.set_title("How many cars are in each price range?")
+ax.set_xlabel("Price range")
+ax.set_ylabel("Number of cars")
+ax.set_xticks(
+    [5, 15, 25, 35, 45, 55, 65],
+    ["0–10", "10–20", "20–30", "30–40",
+     "40–50", "50–60", "60–70"],
+)
+ax.set_ylim(0, max(counts) * 1.12)
+ax.grid(axis="y", alpha=0.25)
+ax.set_axisbelow(True)
+
+fig.tight_layout()
+fig.savefig(Path(__file__).with_name("price_histogram.png"), bbox_inches="tight")
+plt.close(fig)
+
+# Additional chart: number of cars by type.
+type_counts = cars["Type"].fillna("Unknown").value_counts()
+
+plt.figure()
+plt.bar(type_counts.index, type_counts.values, edgecolor="black")
+plt.title("Number of cars by type")
+plt.xlabel("Car type")
+plt.ylabel("Number of cars")
+plt.xticks(rotation=30, ha="right")
+plt.tight_layout()
+plt.savefig(Path(__file__).with_name("cars_by_type.png"))
+
+print("\n9. Cars by type:")
+print(type_counts)
+
+
+# 10. Calculate a correlation matrix for numeric columns.
+numeric_columns = ["Price", "Horsepower", "MPG.city", "MPG.highway"]
+correlation_matrix = cars[numeric_columns].corr(method="pearson")
+
+print("\n10. Correlation matrix:")
+print(correlation_matrix)
+
+plt.show()
